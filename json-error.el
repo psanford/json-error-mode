@@ -50,6 +50,11 @@
   "Minor mode to add error highlighting to json mode"
   :init-value nil
 
+  (if json-error-mode
+      (json-mode-enter)
+    (json-mode-exit)))
+
+(defun json-mode-enter ()
   (setq json-error-mode-parsing nil)
   (setq json-error-mode-buffer-dirty-p t)
   (setq json-error-mode-parse-timer nil)
@@ -60,8 +65,10 @@
 
   (json-error-reparse))
 
-(defun js2-mode-exit ()
+(defun json-mode-exit ()
   (interactive)
+  (json-error-remove-overlays)
+  (remove-hook 'after-change-functions #'json-error-mode-edit t)
   (remove-hook 'change-major-mode-hook #'json-error-mode-exit t))
 
 (defun json-error-mode-reset-timer ()
