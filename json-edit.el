@@ -1,4 +1,4 @@
-;;; json-edit.el --- Good JSON editing mode
+;;; json-error.el --- JSON syntax error highlighting
 
 ;; Author:  Peter Sanford (psanford@petersdanceparty.com)
 ;; Keywords:  json
@@ -20,205 +20,205 @@
 
 ;;; Commentary:
 
-;; This is a json editing mode that supports full json parsing. With
+;; This is a json minor mode mode that supports full json parsing. With
 ;; a full parser we are able to provide accurate syntax-error checking.
 
 ;;; Code:
 
-(defgroup json-edit-mode nil
+(defgroup json-error-mode nil
   "JSON editing mode"
   :group 'languages)
 
-(defface json-edit-error-face
+(defface json-error-error-face
   `((((class color) (background light))
      (:foreground "red"))
     (((class color) (background dark))
      (:foreground "red"))
     (t (:foreground "red")))
   "Face for JSON errors."
-  :group 'json-edit-mode)
+  :group 'json-error-mode)
 
-;; json-edit-mode state
-(make-local-variable 'json-edit-mode-parsing) ; in the middle of a parse
-(make-local-variable 'json-edit-mode-buffer-dirty-p)
-(make-local-variable 'json-edit-mode-parse-timer)
-(make-local-variable 'json-edit-parsed-errors)
-(defvar json-edit-idle-timer-delay 0.2
+;; json-error-mode state
+(make-local-variable 'json-error-mode-parsing) ; in the middle of a parse
+(make-local-variable 'json-error-mode-buffer-dirty-p)
+(make-local-variable 'json-error-mode-parse-timer)
+(make-local-variable 'json-error-parsed-errors)
+(defvar json-error-idle-timer-delay 0.2
   "Delay in secs before re-parsing after user makes changes.")
 
-(define-minor-mode json-edit-mode
+(define-minor-mode json-error-mode
   "Minor mode to add error highlighting to json mode"
   :init-value nil
 
-  (setq json-edit-mode-parsing nil)
-  (setq json-edit-mode-buffer-dirty-p t)
-  (setq json-edit-mode-parse-timer nil)
-  (setq json-edit-parsed-errors nil)
+  (setq json-error-mode-parsing nil)
+  (setq json-error-mode-buffer-dirty-p t)
+  (setq json-error-mode-parse-timer nil)
+  (setq json-error-parsed-errors nil)
 
-  (add-hook 'change-major-mode-hook #'json-edit-mode-exit nil t)
-  (add-hook 'after-change-functions #'json-edit-mode-edit nil t)
+  (add-hook 'change-major-mode-hook #'json-error-mode-exit nil t)
+  (add-hook 'after-change-functions #'json-error-mode-edit nil t)
 
-  (json-edit-reparse))
+  (json-error-reparse))
 
 (defun js2-mode-exit ()
   (interactive)
-  (remove-hook 'change-major-mode-hook #'json-edit-mode-exit t))
+  (remove-hook 'change-major-mode-hook #'json-error-mode-exit t))
 
-(defun json-edit-mode-reset-timer ()
-  (if json-edit-mode-parse-timer
-      (cancel-timer json-edit-mode-parse-timer))
-  (setq json-edit-mode-parsing nil)
-  (setq json-edit-mode-parse-timer
-        (run-with-idle-timer json-edit-idle-timer-delay nil #'json-edit-hook-timer)))
+(defun json-error-mode-reset-timer ()
+  (if json-error-mode-parse-timer
+      (cancel-timer json-error-mode-parse-timer))
+  (setq json-error-mode-parsing nil)
+  (setq json-error-mode-parse-timer
+        (run-with-idle-timer json-error-idle-timer-delay nil #'json-error-hook-timer)))
 
-(defun json-edit-hook-timer ()
-  (json-edit-reparse))
+(defun json-error-hook-timer ()
+  (json-error-reparse))
 
-(defun json-edit-mode-edit (beg end len)
+(defun json-error-mode-edit (beg end len)
   "Schedule a new parse after buffer is edited."
-  (setq json-edit-mode-buffer-dirty-p t)
-  (json-edit-mode-reset-timer))
+  (setq json-error-mode-buffer-dirty-p t)
+  (json-error-mode-reset-timer))
 
 
-(defun json-edit-reparse ()
+(defun json-error-reparse ()
   "Re-parse current buffer after user finishes some data entry.
 If we get any user input while parsing, including cursor motion,
 we discard the parse and reschedule it."
   (let (interrupted-p)
-    (unless json-edit-mode-parsing
-      (setq json-edit-mode-parsing t)
+    (unless json-error-mode-parsing
+      (setq json-error-mode-parsing t)
       (unwind-protect
-          (when json-edit-mode-buffer-dirty-p
+          (when json-error-mode-buffer-dirty-p
             (with-silent-modifications
-              (setq json-edit-mode-buffer-dirty-p nil)
-              (setq json-edit-parsed-errors '())
-              (json-edit-remove-overlays)
+              (setq json-error-mode-buffer-dirty-p nil)
+              (setq json-error-parsed-errors '())
+              (json-error-remove-overlays)
               (setq interrupted-p
                     (catch 'interrupted
-                      (json-edit-parse-buffer)
-                      (json-edit-mode-show-errors)
+                      (json-error-parse-buffer)
+                      (json-error-mode-show-errors)
                       nil))
               (when interrupted-p
                 ;; unfinished parse => try again
-                (setq json-edit-mode-buffer-dirty-p t)
-                (json-edit-mode-reset-timer))))
+                (setq json-error-mode-buffer-dirty-p t)
+                (json-error-mode-reset-timer))))
         ;; finally
-        (setq json-edit-mode-parsing nil)
+        (setq json-error-mode-parsing nil)
         (unless interrupted-p
-          (setq json-edit-mode-parse-timer nil))))))
+          (setq json-error-mode-parse-timer nil))))))
 
-(defun json-edit-clear-face (beg end)
+(defun json-error-clear-face (beg end)
   (remove-text-properties beg end '(help-echo nil
                                     point-entered nil)))
 
 
-(defun json-edit-mode-show-errors ()
+(defun json-error-mode-show-errors ()
   "Highlight syntax errors."
-  (json-edit-clear-face (point-min) (point-max))
-  (dolist (e json-edit-parsed-errors)
+  (json-error-clear-face (point-min) (point-max))
+  (dolist (e json-error-parsed-errors)
     (let* ((msg (first e))
            (pos (second e))
            (beg (max (point-min) (min (- pos 1) (point-max))))
            (end (point-max))
            (ovl (make-overlay beg end)))
 
-      (overlay-put ovl 'font-lock-face 'json-edit-error-face)
-      (overlay-put ovl 'json-edit-error t)
+      (overlay-put ovl 'font-lock-face 'json-error-error-face)
+      (overlay-put ovl 'json-error-error t)
       (put-text-property beg end 'help-echo msg)
-      (put-text-property beg end 'point-entered #'json-edit-echo-error))))
+      (put-text-property beg end 'point-entered #'json-error-echo-error))))
 
-(defun json-edit-remove-overlays ()
-  "Remove overlays from buffer that have a `json-edit-error' property."
+(defun json-error-remove-overlays ()
+  "Remove overlays from buffer that have a `json-error-error' property."
   (let ((beg (point-min))
         (end (point-max)))
     (save-excursion
       (dolist (o (overlays-in beg end))
-        (when (overlay-get o 'json-edit-error)
+        (when (overlay-get o 'json-error-error)
           (delete-overlay o))))))
 
-(defun json-edit-echo-error (old-point new-point)
+(defun json-error-echo-error (old-point new-point)
   (let ((msg (get-text-property new-point 'help-echo)))
     (if msg
         (message msg))))
 
-(defun json-edit-parse-buffer ()
-  (json-edit-init-scanner)
+(defun json-error-parse-buffer ()
+  (json-error-init-scanner)
   (let (c state)
     (catch 'done
       (while t
-        (setq c (json-edit-next-char))
-        (when (eq c json-edit-EOF-CHAR)
+        (setq c (json-error-next-char))
+        (when (eq c json-error-EOF-CHAR)
           (throw 'done nil))
-        (setq state (funcall json-edit-step c))
-        (when (>= state json-edit-scan-skip-space)
-          (when (= state json-edit-scan-error)
-            (push (list json-edit-error json-edit-cursor json-edit-lineno json-edit-line-offset)
-                  json-edit-parsed-errors)
+        (setq state (funcall json-error-step c))
+        (when (>= state json-error-scan-skip-space)
+          (when (= state json-error-scan-error)
+            (push (list json-error-error json-error-cursor json-error-lineno json-error-line-offset)
+                  json-error-parsed-errors)
             (throw 'done nil)))))
     ))
 
 ;; Internal parser state:
 
-(defvar json-edit-EOF-CHAR -1)
+(defvar json-error-EOF-CHAR -1)
 
 ;; Continue.
-(defvar json-edit-scan-continue 0)
-(defvar json-edit-scan-begin-literal 1)
-(defvar json-edit-scan-begin-object 2)
-(defvar json-edit-scan-object-key 3)
-(defvar json-edit-scan-object-value 4)
-(defvar json-edit-scan-end-object 5)
-(defvar json-edit-scan-begin-array 6)
-(defvar json-edit-scan-array-value 7)
-(defvar json-edit-scan-end-array 8)
-(defvar json-edit-scan-skip-space 9)
+(defvar json-error-scan-continue 0)
+(defvar json-error-scan-begin-literal 1)
+(defvar json-error-scan-begin-object 2)
+(defvar json-error-scan-object-key 3)
+(defvar json-error-scan-object-value 4)
+(defvar json-error-scan-end-object 5)
+(defvar json-error-scan-begin-array 6)
+(defvar json-error-scan-array-value 7)
+(defvar json-error-scan-end-array 8)
+(defvar json-error-scan-skip-space 9)
 ;; Stop.
-(defvar json-edit-scan-end 10)
-(defvar json-edit-scan-error 11)
+(defvar json-error-scan-end 10)
+(defvar json-error-scan-error 11)
 
 ;; parser state
-(make-local-variable 'json-edit-cursor) ; current position
-(make-local-variable 'json-edit-step) ; next parse function
-(make-local-variable 'json-edit-parse-state) ; Stack of what we are in the middle of
-(make-local-variable 'json-edit-error) ; error that happened, if any
-(make-local-variable 'json-edit-lineno) ; line number
-(make-local-variable 'json-edit-line-offset) ; char offset in line
+(make-local-variable 'json-error-cursor) ; current position
+(make-local-variable 'json-error-step) ; next parse function
+(make-local-variable 'json-error-parse-state) ; Stack of what we are in the middle of
+(make-local-variable 'json-error-error) ; error that happened, if any
+(make-local-variable 'json-error-lineno) ; line number
+(make-local-variable 'json-error-line-offset) ; char offset in line
 
 
-(defun json-edit-init-scanner (&optional buf)
+(defun json-error-init-scanner (&optional buf)
   (save-excursion
     (when buf (set-buffer buf))
     (setq
-     json-edit-cursor (point-min)
-     json-edit-step 'json-edit-state-begin-value
-     json-edit-parse-state '()
-     json-edit-error nil
-     json-edit-lineno 1
-     json-edit-line-offset 0)))
+     json-error-cursor (point-min)
+     json-error-step 'json-error-state-begin-value
+     json-error-parse-state '()
+     json-error-error nil
+     json-error-lineno 1
+     json-error-line-offset 0)))
 
-(defun json-edit-next-char ()
+(defun json-error-next-char ()
   (let (c)
-    (if (>= json-edit-cursor (point-max))
-        (setq c json-edit-EOF-CHAR)
-      (setq c (char-after json-edit-cursor))
+    (if (>= json-error-cursor (point-max))
+        (setq c json-error-EOF-CHAR)
+      (setq c (char-after json-error-cursor))
       (when (= c ?\n)
-        (setq json-edit-lineno (+ 1 json-edit-lineno))
-        (setq json-edit-line-offset -1))
-      (setq json-edit-cursor (+ 1 json-edit-cursor))
-      (setq json-edit-line-offset (+ 1 json-edit-line-offset)))
+        (setq json-error-lineno (+ 1 json-error-lineno))
+        (setq json-error-line-offset -1))
+      (setq json-error-cursor (+ 1 json-error-cursor))
+      (setq json-error-line-offset (+ 1 json-error-line-offset)))
     c))
 
-(defun json-edit-state-error (c)
+(defun json-error-state-error (c)
   "state after reaching a syntax error"
-  json-edit-scan-error)
+  json-error-scan-error)
 
-(defun json-edit-set-error (c context)
+(defun json-error-set-error (c context)
   "record error and switch to error state"
-  (setq json-edit-step 'json-edit-state-error
-        json-edit-error (format "invalid character '%c' %s" c context))
-  json-edit-scan-error)
+  (setq json-error-step 'json-error-state-error
+        json-error-error (format "invalid character '%c' %s" c context))
+  json-error-scan-error)
 
-(defsubst json-edit-is-space (c)
+(defsubst json-error-is-space (c)
   "returns t if character is whitespace"
   (case c
     (?\s t)
@@ -227,139 +227,139 @@ we discard the parse and reschedule it."
     (?\n t)
     (t nil)))
 
-(defun json-edit-state-begin-value-or-empty (c)
+(defun json-error-state-begin-value-or-empty (c)
   "state after reading `[`"
   (cond
-   ((json-edit-is-space c)
-    json-edit-scan-skip-space)
+   ((json-error-is-space c)
+    json-error-scan-skip-space)
    ((= c ?\])
-    (json-edit-state-end-value c))
+    (json-error-state-end-value c))
    (t
-    (json-edit-state-begin-value c))))
+    (json-error-state-begin-value c))))
 
-(defun json-edit-state-begin-value (c)
+(defun json-error-state-begin-value (c)
   "State at the beginning of the input."
   (case c
-    (?\s json-edit-scan-skip-space)
-    (?\t json-edit-scan-skip-space)
-    (?\r json-edit-scan-skip-space)
-    (?\n json-edit-scan-skip-space)
+    (?\s json-error-scan-skip-space)
+    (?\t json-error-scan-skip-space)
+    (?\r json-error-scan-skip-space)
+    (?\n json-error-scan-skip-space)
     (?{  (progn
-           (setq json-edit-step 'json-edit-state-begin-string-or-empty)
-           (push 'json-edit-parse-object-key json-edit-parse-state)
-           json-edit-scan-begin-object))
+           (setq json-error-step 'json-error-state-begin-string-or-empty)
+           (push 'json-error-parse-object-key json-error-parse-state)
+           json-error-scan-begin-object))
     (?\[ (progn
-           (setq json-edit-step 'json-edit-state-begin-value-or-empty)
-           (push 'json-edit-parse-array-value json-edit-parse-state)
-           json-edit-scan-begin-array))
+           (setq json-error-step 'json-error-state-begin-value-or-empty)
+           (push 'json-error-parse-array-value json-error-parse-state)
+           json-error-scan-begin-array))
     (?\" (progn
-           (setq json-edit-step 'json-edit-state-in-string)
-           json-edit-scan-begin-literal))
+           (setq json-error-step 'json-error-state-in-string)
+           json-error-scan-begin-literal))
     (?-  (progn
-           (setq json-edit-step 'json-edit-state-neg)
-           json-edit-scan-begin-literal))
+           (setq json-error-step 'json-error-state-neg)
+           json-error-scan-begin-literal))
     (?0  (progn                         ; beginning of 0.123
-           (setq json-edit-step 'json-edit-state-0)
-           json-edit-scan-begin-literal))
+           (setq json-error-step 'json-error-state-0)
+           json-error-scan-begin-literal))
     (?t  (progn                         ; beginning of true
-           (setq json-edit-step 'json-edit-state-t)
-           json-edit-scan-begin-literal))
+           (setq json-error-step 'json-error-state-t)
+           json-error-scan-begin-literal))
     (?f  (progn                         ; beginning of false
-           (setq json-edit-step 'json-edit-state-f)
-           json-edit-scan-begin-literal))
+           (setq json-error-step 'json-error-state-f)
+           json-error-scan-begin-literal))
     (?n  (progn                         ; beginning of null
-           (setq json-edit-step 'json-edit-state-n)
-           json-edit-scan-begin-literal))
+           (setq json-error-step 'json-error-state-n)
+           json-error-scan-begin-literal))
     (t
      (if (and (<= ?1 c) (<= c ?9))
          (progn                         ; beginning of 1234.5
-           (setq json-edit-step 'json-edit-state-1)
-           json-edit-scan-begin-literal)
+           (setq json-error-step 'json-error-state-1)
+           json-error-scan-begin-literal)
                                         ; else error
-       (json-edit-set-error c "looking for beginning of value")))))
+       (json-error-set-error c "looking for beginning of value")))))
 
 
-(defun json-edit-state-begin-string-or-empty (c)
+(defun json-error-state-begin-string-or-empty (c)
   "state after reading ?{"
   (cond
-   ((json-edit-is-space c)
-    json-edit-scan-skip-space)
+   ((json-error-is-space c)
+    json-error-scan-skip-space)
    ((= c ?})
-    (pop json-edit-parse-state)
-    (push 'json-edit-parse-object-value json-edit-parse-state)
-    (json-edit-state-end-value c))
+    (pop json-error-parse-state)
+    (push 'json-error-parse-object-value json-error-parse-state)
+    (json-error-state-end-value c))
    (t
-    (json-edit-state-begin-string c))))
+    (json-error-state-begin-string c))))
 
-(defun json-edit-state-begin-string (c)
+(defun json-error-state-begin-string (c)
   "state after reading `{\"key\": value,`"
   (cond
-   ((json-edit-is-space c) json-edit-scan-skip-space)
+   ((json-error-is-space c) json-error-scan-skip-space)
    ((= c ?\")
-    (setq json-edit-step 'json-edit-state-in-string)
-    json-edit-scan-begin-literal)
-   (t (json-edit-set-error c "looking for beginning of object key string"))))
+    (setq json-error-step 'json-error-state-in-string)
+    json-error-scan-begin-literal)
+   (t (json-error-set-error c "looking for beginning of object key string"))))
 
 
-(defun json-edit-state-end-value (c)
+(defun json-error-state-end-value (c)
   "state after completing a value, such as after reading '{}' or 'true'"
   (catch 'return
-    (let ((ps (first json-edit-parse-state)))
+    (let ((ps (first json-error-parse-state)))
       (cond
-       ((= 0 (length json-edit-parse-state))
+       ((= 0 (length json-error-parse-state))
         ;; completed top-level before the current char
-        (setq json-edit-step 'json-edit-state-end-top)
-        (throw 'return (json-edit-state-end-top c)))
-       ((json-edit-is-space c)
-        (setq json-edit-step 'json-edit-state-end-value)
-        (throw 'return json-edit-scan-skip-space))
-       ((eq ps 'json-edit-parse-object-key)
+        (setq json-error-step 'json-error-state-end-top)
+        (throw 'return (json-error-state-end-top c)))
+       ((json-error-is-space c)
+        (setq json-error-step 'json-error-state-end-value)
+        (throw 'return json-error-scan-skip-space))
+       ((eq ps 'json-error-parse-object-key)
         (when (= c ?:)
-          (pop json-edit-parse-state)
-          (push 'json-edit-parse-object-value json-edit-parse-state)
-          (setq json-edit-step 'json-edit-state-begin-value)
-          (throw 'return json-edit-scan-object-key))
-        (throw 'return (json-edit-set-error c "after object key")))
-       ((eq ps 'json-edit-parse-object-value)
+          (pop json-error-parse-state)
+          (push 'json-error-parse-object-value json-error-parse-state)
+          (setq json-error-step 'json-error-state-begin-value)
+          (throw 'return json-error-scan-object-key))
+        (throw 'return (json-error-set-error c "after object key")))
+       ((eq ps 'json-error-parse-object-value)
         (when (= c ?,)
-          (pop json-edit-parse-state)
-          (push 'json-edit-parse-object-key json-edit-parse-state)
-          (setq json-edit-step 'json-edit-state-begin-string)
-          (throw 'return json-edit-scan-object-value))
+          (pop json-error-parse-state)
+          (push 'json-error-parse-object-key json-error-parse-state)
+          (setq json-error-step 'json-error-state-begin-string)
+          (throw 'return json-error-scan-object-value))
         (when (= c ?})
-          (pop json-edit-parse-state)
-          (throw 'return json-edit-scan-end-object))
-        (throw 'return (json-edit-set-error c "after object key:value pair")))
-       ((eq ps 'json-edit-parse-array-value)
+          (pop json-error-parse-state)
+          (throw 'return json-error-scan-end-object))
+        (throw 'return (json-error-set-error c "after object key:value pair")))
+       ((eq ps 'json-error-parse-array-value)
         (when (= c ?,)
-          (setq json-edit-step 'json-edit-state-begin-value)
-          (throw 'return json-edit-scan-array-value))
+          (setq json-error-step 'json-error-state-begin-value)
+          (throw 'return json-error-scan-array-value))
         (when (= c ?\])
-          (pop json-edit-parse-state)
-          (throw 'return json-edit-scan-end-array))
-        (throw 'return (json-edit-set-error c "after array element")))
-       (t (throw 'return (json-edit-set-error c "")))))))
+          (pop json-error-parse-state)
+          (throw 'return json-error-scan-end-array))
+        (throw 'return (json-error-set-error c "after array element")))
+       (t (throw 'return (json-error-set-error c "")))))))
 
-(defun json-edit-state-end-top (c)
+(defun json-error-state-end-top (c)
   "state after finishing the top-level value such as `{}`.
    Only space characters should be seen now"
-  (if (json-edit-is-space c)
-      json-edit-scan-end
-    (json-edit-set-error c "after top-level value")))
+  (if (json-error-is-space c)
+      json-error-scan-end
+    (json-error-set-error c "after top-level value")))
 
-(defun json-edit-state-in-string (c)
+(defun json-error-state-in-string (c)
   (cond
    ((= c ?\")
-    (setq json-edit-step 'json-edit-state-end-value)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-end-value)
+    json-error-scan-continue)
    ((= c ?\\)
-    (setq json-edit-step 'json-edit-state-in-string-esc)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string-esc)
+    json-error-scan-continue)
    ((< c #x20)
-    (json-edit-set-error c "in string literal"))
-   (t json-edit-scan-continue)))
+    (json-error-set-error c "in string literal"))
+   (t json-error-scan-continue)))
 
-(defun json-edit-state-in-string-esc (c)
+(defun json-error-state-in-string-esc (c)
   (cond
    ((or (= c ?b)
         (= c ?f)
@@ -368,221 +368,221 @@ we discard the parse and reschedule it."
         (= c ?t)
         (= c ?\\)
         (= c ?\"))
-    (setq json-edit-step 'json-edit-state-in-string)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string)
+    json-error-scan-continue)
    ((= c ?u)
-    (setq json-edit-step 'json-edit-state-in-string-esc-u)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string-esc-u)
+    json-error-scan-continue)
    (t
-    (json-edit-set-error c "in string escape code"))))
+    (json-error-set-error c "in string escape code"))))
 
-(defun json-edit-state-in-string-esc-u (c)
+(defun json-error-state-in-string-esc-u (c)
   (cond
    ((or
      (and (<= ?0 c) (<= c ?9))
      (and (<= ?a c) (<= c ?f))
      (and (<= ?A c) (<= c ?F)))
-    (setq json-edit-step 'json-edit-state-in-string-esc-u1)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string-esc-u1)
+    json-error-scan-continue)
    (t
-    (json-edit-set-error c "in \\u hexadecimal character escape"))))
+    (json-error-set-error c "in \\u hexadecimal character escape"))))
 
-(defun json-edit-state-in-string-esc-u1 (c)
+(defun json-error-state-in-string-esc-u1 (c)
   (cond
    ((or
      (and (<= ?0 c) (<= c ?9))
      (and (<= ?a c) (<= c ?f))
      (and (<= ?A c) (<= c ?F)))
-    (setq json-edit-step 'json-edit-state-in-string-esc-u12)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string-esc-u12)
+    json-error-scan-continue)
    (t
-    (json-edit-set-error c "in \\u hexadecimal character escape"))))
+    (json-error-set-error c "in \\u hexadecimal character escape"))))
 
-(defun json-edit-state-in-string-esc-u12 (c)
+(defun json-error-state-in-string-esc-u12 (c)
   (cond
    ((or
      (and (<= ?0 c) (<= c ?9))
      (and (<= ?a c) (<= c ?f))
      (and (<= ?A c) (<= c ?F)))
-    (setq json-edit-step 'json-edit-state-in-string-esc-u123)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string-esc-u123)
+    json-error-scan-continue)
    (t
-    (json-edit-set-error c "in \\u hexadecimal character escape"))))
+    (json-error-set-error c "in \\u hexadecimal character escape"))))
 
-(defun json-edit-state-in-string-esc-u123 (c)
+(defun json-error-state-in-string-esc-u123 (c)
   (cond
    ((or
      (and (<= ?0 c) (<= c ?9))
      (and (<= ?a c) (<= c ?f))
      (and (<= ?A c) (<= c ?F)))
-    (setq json-edit-step 'json-edit-state-in-string)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-in-string)
+    json-error-scan-continue)
    (t
-    (json-edit-set-error c "in \\u hexadecimal character escape"))))
+    (json-error-set-error c "in \\u hexadecimal character escape"))))
 
-(defun json-edit-state-neg (c)
+(defun json-error-state-neg (c)
   "after reading - during a number"
   (cond
    ((= c ?0)
-    (setq json-edit-step 'json-edit-state-0)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-0)
+    json-error-scan-continue)
    ((and (<= ?1 c) (<= c ?9))
-    (setq json-edit-step 'json-edit-state-1)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-1)
+    json-error-scan-continue)
    (t
-    (json-edit-set-error c "in numeric literal"))))
+    (json-error-set-error c "in numeric literal"))))
 
-(defun json-edit-state-0 (c)
+(defun json-error-state-0 (c)
   "after reading `0' during a number"
   (cond
    ((= c ?.)
-    (setq json-edit-step 'json-edit-state-dot)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-dot)
+    json-error-scan-continue)
    ((or (= c ?e) (= c ?E))
-    (setq json-edit-step 'json-edit-state-E)
-    json-edit-scan-continue)
-   (t (json-edit-state-end-value c))))
+    (setq json-error-step 'json-error-state-E)
+    json-error-scan-continue)
+   (t (json-error-state-end-value c))))
 
-(defun json-edit-state-1 (c)
+(defun json-error-state-1 (c)
   "state-1 is the state after reading a non-zero interger during a number,
 such as after reading `1` or `100` but not `0`"
   (cond
    ((and (<= ?0 c) (<= c ?9))
-    (setq json-edit-step 'json-edit-state-1)
-    json-edit-scan-continue)
-   (t (json-edit-state-0 c))))
+    (setq json-error-step 'json-error-state-1)
+    json-error-scan-continue)
+   (t (json-error-state-0 c))))
 
-(defun json-edit-state-dot (c)
+(defun json-error-state-dot (c)
   "state afeter reading the integer and decimal point in a number
 such as after reading `1.`"
   (cond
    ((and (<= ?0 c) (<= c ?9))
-    (setq json-edit-step 'json-edit-state-dot-0)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "after decimal point in numeric literal"))))
+    (setq json-error-step 'json-error-state-dot-0)
+    json-error-scan-continue)
+   (t (json-error-set-error c "after decimal point in numeric literal"))))
 
-(defun json-edit-state-dot-0 (c)
+(defun json-error-state-dot-0 (c)
   "stae after reading an integer, decimal point, and subsequent digits
 of a number, such as after reading `3.14`"
   (cond
    ((and (<= ?0 c) (<= c ?9))
-    (setq json-edit-step 'json-edit-state-dot-0)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-dot-0)
+    json-error-scan-continue)
    ((or (= c ?e) (= c ?E))
-    (setq json-edit-step 'json-edit-state-E)
-    json-edit-scan-continue)
-   (t (json-edit-state-end-value c))))
+    (setq json-error-step 'json-error-state-E)
+    json-error-scan-continue)
+   (t (json-error-state-end-value c))))
 
-(defun json-edit-state-E (c)
+(defun json-error-state-E (c)
   "state after reading the mantissa and e in a number,
 such as after reading `314e` or `0.314e`"
   (cond
    ((= c ?+)
-    (setq json-edit-step 'json-edit-state-E-sign)
-    json-edit-scan-continue)
+    (setq json-error-step 'json-error-state-E-sign)
+    json-error-scan-continue)
    ((= c ?-)
-    (setq json-edit-step 'json-edit-state-E-sign)
-    json-edit-scan-continue)
-   (t (json-edit-state-E-sign c))))
+    (setq json-error-step 'json-error-state-E-sign)
+    json-error-scan-continue)
+   (t (json-error-state-E-sign c))))
 
-(defun json-edit-state-E-sign (c)
+(defun json-error-state-E-sign (c)
   "state after reading the mantissa, e, and sign in a number,
 such as after reading `314e-` or `0.314e+`"
   (cond
    ((and (<= ?0 c) (<= c ?9))
-    (setq json-edit-step 'json-edit-state-E-0)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in exponent of numeric literal"))))
+    (setq json-error-step 'json-error-state-E-0)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in exponent of numeric literal"))))
 
-(defun json-edit-state-E-0 (c)
+(defun json-error-state-E-0 (c)
   "state after reading mantissa, e, optional sign, and at least
 one digit of the exponent in a number, such as `314e-2`"
   (cond
    ((and (<= ?0 c) (<= c ?9))
-    (setq json-edit-step 'json-edit-state-E-0)
-    json-edit-scan-continue)
-   (t (json-edit-state-end-value c))))
+    (setq json-error-step 'json-error-state-E-0)
+    json-error-scan-continue)
+   (t (json-error-state-end-value c))))
 
-(defun json-edit-state-t (c)
+(defun json-error-state-t (c)
   "state after reading `t`"
   (cond
    ((= c ?r)
-    (setq json-edit-step 'json-edit-state-tr)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal true (expecting 'r')"))))
+    (setq json-error-step 'json-error-state-tr)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal true (expecting 'r')"))))
 
-(defun json-edit-state-tr (c)
+(defun json-error-state-tr (c)
   "state after reading `tr`"
   (cond
    ((= c ?u)
-    (setq json-edit-step 'json-edit-state-tru)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal true (expecting 'u')"))))
+    (setq json-error-step 'json-error-state-tru)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal true (expecting 'u')"))))
 
-(defun json-edit-state-tru (c)
+(defun json-error-state-tru (c)
   "state after reading `tru`"
   (cond
    ((= c ?e)
-    (setq json-edit-step 'json-edit-state-end-value)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal true (expecting 'e')"))))
+    (setq json-error-step 'json-error-state-end-value)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal true (expecting 'e')"))))
 
-(defun json-edit-state-f (c)
+(defun json-error-state-f (c)
   "state after reading `f`"
   (cond
    ((= c ?a)
-    (setq json-edit-step 'json-edit-state-fa)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal false (expecting 'a')"))))
+    (setq json-error-step 'json-error-state-fa)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal false (expecting 'a')"))))
 
-(defun json-edit-state-fa (c)
+(defun json-error-state-fa (c)
   "state after reading `fa`"
   (cond
    ((= c ?l)
-    (setq json-edit-step 'json-edit-state-fal)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal false (expecting 'l')"))))
+    (setq json-error-step 'json-error-state-fal)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal false (expecting 'l')"))))
 
-(defun json-edit-state-fal (c)
+(defun json-error-state-fal (c)
   "state after reading `fal`"
   (cond
    ((= c ?s)
-    (setq json-edit-step 'json-edit-state-fals)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal false (expecting 's')"))))
+    (setq json-error-step 'json-error-state-fals)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal false (expecting 's')"))))
 
-(defun json-edit-state-fals (c)
+(defun json-error-state-fals (c)
   "state after reading `fals`"
   (cond
    ((= c ?e)
-    (setq json-edit-step 'json-edit-state-end-value)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal false (expecting 'e')"))))
+    (setq json-error-step 'json-error-state-end-value)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal false (expecting 'e')"))))
 
-(defun json-edit-state-n (c)
+(defun json-error-state-n (c)
   "state after reading `n`"
   (cond
    ((= c ?u)
-    (setq json-edit-step 'json-edit-state-nu)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal null (expecting 'u')"))))
+    (setq json-error-step 'json-error-state-nu)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal null (expecting 'u')"))))
 
-(defun json-edit-state-nu (c)
+(defun json-error-state-nu (c)
   "state after reading `nu`"
   (cond
    ((= c ?l)
-    (setq json-edit-step 'json-edit-state-nul)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal null (expecting 'l')"))))
+    (setq json-error-step 'json-error-state-nul)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal null (expecting 'l')"))))
 
-(defun json-edit-state-nul (c)
+(defun json-error-state-nul (c)
   "state after reading `nu`"
   (cond
    ((= c ?l)
-    (setq json-edit-step 'json-edit-state-end-value)
-    json-edit-scan-continue)
-   (t (json-edit-set-error c "in literal null (expecting 'l')"))))
+    (setq json-error-step 'json-error-state-end-value)
+    json-error-scan-continue)
+   (t (json-error-set-error c "in literal null (expecting 'l')"))))
 
-(provide 'json-edit)
+(provide 'json-error)
 
-;;; json-edit.el ends here
+;;; json-error.el ends here
