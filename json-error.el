@@ -380,6 +380,7 @@ we discard the parse and reschedule it."
         (= c ?r)
         (= c ?t)
         (= c ?\\)
+        (= c ?/)
         (= c ?\"))
     (setq json-error-step 'json-error-state-in-string)
     json-error-scan-continue)
