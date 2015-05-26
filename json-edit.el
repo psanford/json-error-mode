@@ -25,6 +25,140 @@
 
 ;;; Code:
 
+(defgroup json-edit-mode nil
+  "JSON editing mode"
+  :group 'languages)
+
+(defface json-edit-error-face
+  `((((class color) (background light))
+     (:foreground "red"))
+    (((class color) (background dark))
+     (:foreground "red"))
+    (t (:foreground "red")))
+  "Face for JSON errors."
+  :group 'json-edit-mode)
+
+;; json-edit-mode state
+(make-local-variable 'json-edit-mode-parsing) ; in the middle of a parse
+(make-local-variable 'json-edit-mode-buffer-dirty-p)
+(make-local-variable 'json-edit-mode-parse-timer)
+(make-local-variable 'json-edit-parsed-errors)
+(defvar json-edit-idle-timer-delay 0.2
+  "Delay in secs before re-parsing after user makes changes.")
+
+(define-minor-mode json-edit-mode
+  "Minor mode to add error highlighting to json mode"
+  :init-value nil
+
+  (setq json-edit-mode-parsing nil)
+  (setq json-edit-mode-buffer-dirty-p t)
+  (setq json-edit-mode-parse-timer nil)
+  (setq json-edit-parsed-errors nil)
+
+  (add-hook 'change-major-mode-hook #'json-edit-mode-exit nil t)
+  (add-hook 'after-change-functions #'json-edit-mode-edit nil t)
+
+  (json-edit-reparse))
+
+(defun js2-mode-exit ()
+  (interactive)
+  (remove-hook 'change-major-mode-hook #'json-edit-mode-exit t))
+
+(defun json-edit-mode-reset-timer ()
+  (if json-edit-mode-parse-timer
+      (cancel-timer json-edit-mode-parse-timer))
+  (setq json-edit-mode-parsing nil)
+  (setq json-edit-mode-parse-timer
+        (run-with-idle-timer json-edit-idle-timer-delay nil #'json-edit-hook-timer)))
+
+(defun json-edit-hook-timer ()
+  (json-edit-reparse))
+
+(defun json-edit-mode-edit (beg end len)
+  "Schedule a new parse after buffer is edited."
+  (setq json-edit-mode-buffer-dirty-p t)
+  (json-edit-mode-reset-timer))
+
+
+(defun json-edit-reparse ()
+  "Re-parse current buffer after user finishes some data entry.
+If we get any user input while parsing, including cursor motion,
+we discard the parse and reschedule it."
+  (let (interrupted-p)
+    (unless json-edit-mode-parsing
+      (setq json-edit-mode-parsing t)
+      (unwind-protect
+          (when json-edit-mode-buffer-dirty-p
+            (with-silent-modifications
+              (setq json-edit-mode-buffer-dirty-p nil)
+              (setq json-edit-parsed-errors '())
+              (json-edit-remove-overlays)
+              (setq interrupted-p
+                    (catch 'interrupted
+                      (json-edit-parse-buffer)
+                      (json-edit-mode-show-errors)
+                      nil))
+              (when interrupted-p
+                ;; unfinished parse => try again
+                (setq json-edit-mode-buffer-dirty-p t)
+                (json-edit-mode-reset-timer))))
+        ;; finally
+        (setq json-edit-mode-parsing nil)
+        (unless interrupted-p
+          (setq json-edit-mode-parse-timer nil))))))
+
+(defun json-edit-clear-face (beg end)
+  (remove-text-properties beg end '(help-echo nil
+                                    point-entered nil)))
+
+
+(defun json-edit-mode-show-errors ()
+  "Highlight syntax errors."
+  (json-edit-clear-face (point-min) (point-max))
+  (dolist (e json-edit-parsed-errors)
+    (let* ((msg (first e))
+           (pos (second e))
+           (beg (max (point-min) (min (- pos 1) (point-max))))
+           (end (point-max))
+           (ovl (make-overlay beg end)))
+
+      (overlay-put ovl 'font-lock-face 'json-edit-error-face)
+      (overlay-put ovl 'json-edit-error t)
+      (put-text-property beg end 'help-echo msg)
+      (put-text-property beg end 'point-entered #'json-edit-echo-error))))
+
+(defun json-edit-remove-overlays ()
+  "Remove overlays from buffer that have a `json-edit-error' property."
+  (let ((beg (point-min))
+        (end (point-max)))
+    (save-excursion
+      (dolist (o (overlays-in beg end))
+        (when (overlay-get o 'json-edit-error)
+          (delete-overlay o))))))
+
+(defun json-edit-echo-error (old-point new-point)
+  (let ((msg (get-text-property new-point 'help-echo)))
+    (if msg
+        (message msg))))
+
+(defun json-edit-parse-buffer ()
+  (json-edit-init-scanner)
+  (let (c state)
+    (catch 'done
+      (while t
+        (setq c (json-edit-next-char))
+        (when (eq c json-edit-EOF-CHAR)
+          (throw 'done nil))
+        (setq state (funcall json-edit-step c))
+        (when (>= state json-edit-scan-skip-space)
+          (when (= state json-edit-scan-error)
+            (push (list json-edit-error json-edit-cursor json-edit-lineno json-edit-line-offset)
+                  json-edit-parsed-errors)
+            (throw 'done nil)))))
+    ))
+
+;; Internal parser state:
+
 (defvar json-edit-EOF-CHAR -1)
 
 ;; Continue.
@@ -42,7 +176,7 @@
 (defvar json-edit-scan-end 10)
 (defvar json-edit-scan-error 11)
 
-
+;; parser state
 (make-local-variable 'json-edit-cursor) ; current position
 (make-local-variable 'json-edit-step) ; next parse function
 (make-local-variable 'json-edit-parse-state) ; Stack of what we are in the middle of
@@ -61,20 +195,6 @@
      json-edit-error nil
      json-edit-lineno 1
      json-edit-line-offset 0)))
-
-(defun json-edit-scan-all ()
-  (let (c state)
-    (catch 'done
-      (while t
-        (setq c (json-edit-next-char))
-        (when (eq c json-edit-EOF-CHAR)
-          (throw 'done nil))
-        (setq state (funcall json-edit-step c))
-        (when (>= state json-edit-scan-skip-space)
-          (when (= state json-edit-scan-error)
-            (message "error!! %s %d %d" json-edit-error json-edit-lineno json-edit-line-offset)
-            (throw 'done nil)))))
-    ))
 
 (defun json-edit-next-char ()
   (let (c)
