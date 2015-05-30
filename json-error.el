@@ -51,10 +51,10 @@
   :init-value nil
 
   (if json-error-mode
-      (json-mode-enter)
-    (json-mode-exit)))
+      (json-error-mode-enter)
+    (json-error-mode-exit)))
 
-(defun json-mode-enter ()
+(defun json-error-mode-enter ()
   (setq json-error-mode-parsing nil)
   (setq json-error-mode-buffer-dirty-p t)
   (setq json-error-mode-parse-timer nil)
@@ -65,7 +65,7 @@
 
   (json-error-reparse))
 
-(defun json-mode-exit ()
+(defun json-error-mode-exit ()
   (interactive)
   (json-error-remove-overlays)
   (remove-hook 'after-change-functions #'json-error-mode-edit t)
