@@ -76,10 +76,10 @@
       (cancel-timer json-error-mode-parse-timer))
   (setq json-error-mode-parsing nil)
   (setq json-error-mode-parse-timer
-        (run-with-idle-timer json-error-idle-timer-delay nil #'json-error-hook-timer)))
+        (run-with-idle-timer json-error-idle-timer-delay nil #'json-error-hook-timer (current-buffer))))
 
-(defun json-error-hook-timer ()
-  (json-error-reparse))
+(defun json-error-hook-timer (buf)
+  (json-error-reparse buf))
 
 (defun json-error-mode-edit (beg end len)
   "Schedule a new parse after buffer is edited."
@@ -87,32 +87,33 @@
   (json-error-mode-reset-timer))
 
 
-(defun json-error-reparse ()
+(defun json-error-reparse (&optional buffer)
   "Re-parse current buffer after user finishes some data entry.
 If we get any user input while parsing, including cursor motion,
 we discard the parse and reschedule it."
-  (let (interrupted-p)
-    (unless json-error-mode-parsing
-      (setq json-error-mode-parsing t)
-      (unwind-protect
-          (when json-error-mode-buffer-dirty-p
-            (with-silent-modifications
-              (setq json-error-mode-buffer-dirty-p nil)
-              (setq json-error-parsed-errors '())
-              (json-error-remove-overlays)
-              (setq interrupted-p
-                    (catch 'interrupted
-                      (json-error-parse-buffer)
-                      (json-error-mode-show-errors)
-                      nil))
-              (when interrupted-p
-                ;; unfinished parse => try again
-                (setq json-error-mode-buffer-dirty-p t)
-                (json-error-mode-reset-timer))))
-        ;; finally
-        (setq json-error-mode-parsing nil)
-        (unless interrupted-p
-          (setq json-error-mode-parse-timer nil))))))
+  (with-current-buffer (or buffer (current-buffer))
+    (let (interrupted-p)
+      (unless json-error-mode-parsing
+        (setq json-error-mode-parsing t)
+        (unwind-protect
+            (when json-error-mode-buffer-dirty-p
+              (with-silent-modifications
+                (setq json-error-mode-buffer-dirty-p nil)
+                (setq json-error-parsed-errors '())
+                (json-error-remove-overlays)
+                (setq interrupted-p
+                      (catch 'interrupted
+                        (json-error-parse-buffer)
+                        (json-error-mode-show-errors)
+                        nil))
+                (when interrupted-p
+                  ;; unfinished parse => try again
+                  (setq json-error-mode-buffer-dirty-p t)
+                  (json-error-mode-reset-timer))))
+          ;; finally
+          (setq json-error-mode-parsing nil)
+          (unless interrupted-p
+            (setq json-error-mode-parse-timer nil)))))))
 
 (defun json-error-clear-face (beg end)
   (remove-text-properties beg end '(help-echo nil
