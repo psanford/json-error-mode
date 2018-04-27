@@ -30,11 +30,7 @@
   :group 'languages)
 
 (defface json-error-error-face
-  `((((class color) (background light))
-     (:foreground "red"))
-    (((class color) (background dark))
-     (:foreground "red"))
-    (t (:foreground "red")))
+  `((t (:inherit error)))
   "Face for JSON errors."
   :group 'json-error-mode)
 
