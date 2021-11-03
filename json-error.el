@@ -224,12 +224,12 @@ we discard the parse and reschedule it."
 
 (defsubst json-error-is-space (c)
   "returns t if character is whitespace"
-  (case c
-    (?\s t)
-    (?\t t)
-    (?\r t)
-    (?\n t)
-    (t nil)))
+  (cond
+   ((= c ?\s) t)
+   ((= c ?\t) t)
+   ((= c ?\r) t)
+   ((= c ?\n) t)
+   (t nil)))
 
 (defun json-error-state-begin-value-or-empty (c)
   "state after reading `[`"
@@ -243,44 +243,52 @@ we discard the parse and reschedule it."
 
 (defun json-error-state-begin-value (c)
   "State at the beginning of the input."
-  (case c
-    (?\s json-error-scan-skip-space)
-    (?\t json-error-scan-skip-space)
-    (?\r json-error-scan-skip-space)
-    (?\n json-error-scan-skip-space)
-    (?{  (progn
-           (setq json-error-step 'json-error-state-begin-string-or-empty)
-           (push 'json-error-parse-object-key json-error-parse-state)
-           json-error-scan-begin-object))
-    (?\[ (progn
-           (setq json-error-step 'json-error-state-begin-value-or-empty)
-           (push 'json-error-parse-array-value json-error-parse-state)
-           json-error-scan-begin-array))
-    (?\" (progn
-           (setq json-error-step 'json-error-state-in-string)
-           json-error-scan-begin-literal))
-    (?-  (progn
-           (setq json-error-step 'json-error-state-neg)
-           json-error-scan-begin-literal))
-    (?0  (progn                         ; beginning of 0.123
-           (setq json-error-step 'json-error-state-0)
-           json-error-scan-begin-literal))
-    (?t  (progn                         ; beginning of true
-           (setq json-error-step 'json-error-state-t)
-           json-error-scan-begin-literal))
-    (?f  (progn                         ; beginning of false
-           (setq json-error-step 'json-error-state-f)
-           json-error-scan-begin-literal))
-    (?n  (progn                         ; beginning of null
-           (setq json-error-step 'json-error-state-n)
-           json-error-scan-begin-literal))
-    (t
-     (if (and (<= ?1 c) (<= c ?9))
-         (progn                         ; beginning of 1234.5
-           (setq json-error-step 'json-error-state-1)
-           json-error-scan-begin-literal)
+  (cond
+   ((= c ?\s) json-error-scan-skip-space)
+   ((= c ?\t) json-error-scan-skip-space)
+   ((= c ?\r) json-error-scan-skip-space)
+   ((= c ?\n) json-error-scan-skip-space)
+   ((= c ?{)
+    (progn
+      (setq json-error-step 'json-error-state-begin-string-or-empty)
+      (push 'json-error-parse-object-key json-error-parse-state)
+      json-error-scan-begin-object))
+   ((= c ?\[)
+    (progn
+      (setq json-error-step 'json-error-state-begin-value-or-empty)
+      (push 'json-error-parse-array-value json-error-parse-state)
+      json-error-scan-begin-array))
+   ((= c ?\")
+    (progn
+      (setq json-error-step 'json-error-state-in-string)
+      json-error-scan-begin-literal))
+   ((= c ?-)
+    (progn
+      (setq json-error-step 'json-error-state-neg)
+      json-error-scan-begin-literal))
+   ((= c ?0)                          ; beginning of 0.123
+    (progn
+      (setq json-error-step 'json-error-state-0)
+      json-error-scan-begin-literal))
+   ((= c ?t)                         ; beginning of true
+    (progn
+      (setq json-error-step 'json-error-state-t)
+      json-error-scan-begin-literal))
+   ((= c ?f)                         ; beginning of false
+    (progn
+      (setq json-error-step 'json-error-state-f)
+      json-error-scan-begin-literal))
+   ((= c ?n)                         ; beginning of null
+    (progn
+      (setq json-error-step 'json-error-state-n)
+      json-error-scan-begin-literal))
+   (t
+    (if (and (<= ?1 c) (<= c ?9))
+        (progn                         ; beginning of 1234.5
+          (setq json-error-step 'json-error-state-1)
+          json-error-scan-begin-literal)
                                         ; else error
-       (json-error-set-error c "looking for beginning of value")))))
+      (json-error-set-error c "looking for beginning of value")))))
 
 
 (defun json-error-state-begin-string-or-empty (c)
