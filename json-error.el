@@ -202,9 +202,9 @@ we discard the parse and reschedule it."
 
 (defun json-error-next-char ()
   (let (c)
-    (if (>= json-error-cursor (point-max))
+    (setq c (char-after json-error-cursor))
+    (if (null c)
         (setq c json-error-EOF-CHAR)
-      (setq c (char-after json-error-cursor))
       (when (= c ?\n)
         (setq json-error-lineno (+ 1 json-error-lineno))
         (setq json-error-line-offset -1))
