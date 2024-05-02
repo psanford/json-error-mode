@@ -120,8 +120,8 @@ we discard the parse and reschedule it."
   "Highlight syntax errors."
   (json-error-clear-face (point-min) (point-max))
   (dolist (e json-error-parsed-errors)
-    (let* ((msg (first e))
-           (pos (second e))
+    (let* ((msg (car e)) ; frist
+           (pos (cadr e)) ; second
            (beg (max (point-min) (min (- pos 1) (point-max))))
            (end (point-max))
            (ovl (make-overlay beg end)))
@@ -316,7 +316,7 @@ we discard the parse and reschedule it."
 (defun json-error-state-end-value (c)
   "state after completing a value, such as after reading '{}' or 'true'"
   (catch 'return
-    (let ((ps (first json-error-parse-state)))
+    (let ((ps (car json-error-parse-state)))
       (cond
        ((= 0 (length json-error-parse-state))
         ;; completed top-level before the current char
