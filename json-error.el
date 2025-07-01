@@ -34,6 +34,14 @@
   "Face for JSON errors."
   :group 'json-error-mode)
 
+(defcustom json-error-highlighting-style 'context
+  "Style of error highlighting.
+`following' - Highlight everything from the error position to end of buffer.
+`context' - Highlight just the line containing the error."
+  :type '(choice (const :tag "Following (highlight from error to EOF)" following)
+                 (const :tag "Context (highlight error line)" context))
+  :group 'json-error-mode)
+
 ;; json-error-mode state
 (make-local-variable 'json-error-mode-parsing) ; in the middle of a parse
 (make-local-variable 'json-error-mode-buffer-dirty-p)
@@ -120,16 +128,50 @@ we discard the parse and reschedule it."
   "Highlight syntax errors."
   (json-error-clear-face (point-min) (point-max))
   (dolist (e json-error-parsed-errors)
-    (let* ((msg (car e)) ; frist
+    (let* ((msg (car e)) ; first
            (pos (cadr e)) ; second
-           (beg (max (point-min) (min (- pos 1) (point-max))))
-           (end (point-max))
-           (ovl (make-overlay beg end)))
-
-      (overlay-put ovl 'font-lock-face 'json-error-error-face)
-      (overlay-put ovl 'json-error-error t)
-      (put-text-property beg end 'help-echo msg)
-      (put-text-property beg end 'point-entered #'json-error-echo-error))))
+           (error-point (max (point-min) (min (- pos 1) (point-max))))
+           beg end)
+      
+      (cond
+       ;; Following style: highlight from error to end of buffer
+       ((eq json-error-highlighting-style 'following)
+        (setq beg error-point)
+        (setq end (point-max)))
+       
+       ;; Context style: highlight just the error line
+       ((eq json-error-highlighting-style 'context)
+        ;; For "expected" errors (like missing comma), highlight the previous line
+        ;; where the comma should have been
+        (let* ((should-highlight-previous-line
+                (and (string-match "expected" msg)
+                     (save-excursion
+                       (goto-char error-point)
+                       (beginning-of-line)
+                       ;; Check if we're at the beginning of a line with content
+                       (looking-at "\\s-*[\"'{\\[]"))))
+               (highlight-point
+                (if should-highlight-previous-line
+                    (save-excursion
+                      (goto-char error-point)
+                      (forward-line -1)
+                      (point))
+                  error-point)))
+          ;; Find the beginning and end of the line to highlight
+          (setq beg (save-excursion
+                      (goto-char highlight-point)
+                      (beginning-of-line)
+                      (point)))
+          (setq end (save-excursion
+                      (goto-char highlight-point)
+                      (end-of-line)
+                      (point))))))
+      
+      (let ((ovl (make-overlay beg end)))
+        (overlay-put ovl 'font-lock-face 'json-error-error-face)
+        (overlay-put ovl 'json-error-error t)
+        (put-text-property beg end 'help-echo msg)
+        (put-text-property beg end 'point-entered #'json-error-echo-error)))))
 
 (defun json-error-remove-overlays ()
   "Remove overlays from buffer that have a `json-error-error' property."
@@ -147,19 +189,24 @@ we discard the parse and reschedule it."
 
 (defun json-error-parse-buffer ()
   ;; First try to use the builtin json-parse-buffer if available
-  ;; This is much faster for valid JSON
-  (if (and (fboundp 'json-parse-buffer)
-           (condition-case nil
-               (progn
-                 (save-excursion
-                   (goto-char (point-min))
-                   (json-parse-buffer))
-                 t)
-             (error nil)))
-      ;; JSON is valid, no need to run our parser
-      nil
-    ;; JSON is invalid or json-parse-buffer is not available,
-    ;; use our parser to find the specific error
+  ;; This is much faster and provides good error information
+  (if (fboundp 'json-parse-buffer)
+      (condition-case err
+          (save-excursion
+            (goto-char (point-min))
+            (json-parse-buffer)
+            ;; JSON is valid, no errors
+            nil)
+        (error
+         ;; JSON is invalid, extract error position
+         (let* ((error-data (cdr err))
+                (error-msg (car error-data))
+                (error-pos (when (>= (length error-data) 5)
+                             (1+ (nth 4 error-data))))) ; Convert 0-based to 1-based
+           (when error-pos
+             (push (list error-msg error-pos nil nil)
+                   json-error-parsed-errors)))))
+    ;; json-parse-buffer is not available, use our parser
     (json-error-init-scanner)
     (let (c state)
       (catch 'done
