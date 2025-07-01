@@ -46,10 +46,10 @@ To run the test suite, navigate to the test directory and run:
 
 ## Internals
 
-json-error-mode uses Emacs' native `json-parse-buffer` function (when available) for
+json-error-mode uses Emacs' native `json-parse-buffer` function for
 fast validation of JSON syntax. When an error is detected, it extracts the error
-position from the native parser to provide accurate error highlighting. For older
-Emacs versions without `json-parse-buffer`, it falls back to a custom elisp parser.
+position from the native parser to provide accurate error highlighting. This mode
+requires Emacs 27.1 or later.
 
 ### History
 
