@@ -42,7 +42,7 @@ Example configuration:
 To run the test suite, navigate to the test directory and run:
 
     cd test
-    emacs -Q -batch -L .. -l ert -l json-error-test.el -f ert-run-tests-batch-and-exit
+    emacs -Q -batch -L .. -l ert -l json-error-test.el -l json-error-highlighting-test.el -f ert-run-tests-batch-and-exit
 
 ## Internals
 

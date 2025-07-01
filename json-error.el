@@ -130,7 +130,7 @@ we discard the parse and reschedule it."
   (dolist (e json-error-parsed-errors)
     (let* ((msg (car e)) ; first
            (pos (cadr e)) ; second
-           (error-point (max (point-min) (min (- pos 1) (point-max))))
+           (error-point (max (point-min) (min pos (point-max))))
            beg end)
 
       (cond
@@ -141,22 +141,38 @@ we discard the parse and reschedule it."
 
        ;; Context style: highlight just the error line
        ((eq json-error-highlighting-style 'context)
-        ;; For "expected" errors (like missing comma), highlight the previous line
-        ;; where the comma should have been
-        (let* ((should-highlight-previous-line
-                (and (string-match "expected" msg)
-                     (save-excursion
-                       (goto-char error-point)
-                       (beginning-of-line)
-                       ;; Check if we're at the beginning of a line with content
-                       (looking-at "\\s-*[\"'{\\[]"))))
-               (highlight-point
-                (if should-highlight-previous-line
-                    (save-excursion
-                      (goto-char error-point)
-                      (forward-line -1)
-                      (point))
-                  error-point)))
+        (let ((highlight-point error-point))
+          ;; Determine which line to highlight based on error type
+          (cond
+           ;; For string errors (newline, premature end), highlight the line containing the error
+           ;; Check this first since "unexpected newline" contains "expected"
+           ((or (string-match "newline" msg)
+                (string-match "premature end" msg))
+            ;; For newline errors, the error is at the newline character
+            ;; We want to highlight the line containing the unterminated string (before the newline)
+            (if (and (string-match "newline" msg)
+                     (= (char-after error-point) ?\n))
+                ;; The error is at a newline, highlight the previous line
+                (setq highlight-point (1- error-point))
+              ;; For other string errors, use the error position directly
+              (setq highlight-point error-point)))
+
+           ;; For comma-related "expected" errors at the beginning of a line, highlight previous line
+           ;; But not for colon errors - those should highlight the current line
+           ((and (string-match "expected" msg)
+                 (not (string-match "':'" msg))  ; Don't treat missing colons as previous-line errors
+                 (save-excursion
+                   (goto-char error-point)
+                   (beginning-of-line)
+                   ;; Check if we're at the beginning of a line with content
+                   ;; Include numeric values, true, false, null for array elements
+                   (looking-at "\\s-*[\"'{\\[0-9tfn]")))
+            (setq highlight-point
+                  (save-excursion
+                    (goto-char error-point)
+                    (forward-line -1)
+                    (point)))))
+
           ;; Find the beginning and end of the line to highlight
           (setq beg (save-excursion
                       (goto-char highlight-point)
