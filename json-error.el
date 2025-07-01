@@ -146,20 +146,34 @@ we discard the parse and reschedule it."
         (message msg))))
 
 (defun json-error-parse-buffer ()
-  (json-error-init-scanner)
-  (let (c state)
-    (catch 'done
-      (while t
-        (setq c (json-error-next-char))
-        (when (eq c json-error-EOF-CHAR)
-          (throw 'done nil))
-        (setq state (funcall json-error-step c))
-        (when (>= state json-error-scan-skip-space)
-          (when (= state json-error-scan-error)
-            (push (list json-error-error json-error-cursor json-error-lineno json-error-line-offset)
-                  json-error-parsed-errors)
-            (throw 'done nil)))))
-    ))
+  ;; First try to use the builtin json-parse-buffer if available
+  ;; This is much faster for valid JSON
+  (if (and (fboundp 'json-parse-buffer)
+           (condition-case nil
+               (progn
+                 (save-excursion
+                   (goto-char (point-min))
+                   (json-parse-buffer))
+                 t)
+             (error nil)))
+      ;; JSON is valid, no need to run our parser
+      nil
+    ;; JSON is invalid or json-parse-buffer is not available,
+    ;; use our parser to find the specific error
+    (json-error-init-scanner)
+    (let (c state)
+      (catch 'done
+        (while t
+          (setq c (json-error-next-char))
+          (when (eq c json-error-EOF-CHAR)
+            (throw 'done nil))
+          (setq state (funcall json-error-step c))
+          (when (>= state json-error-scan-skip-space)
+            (when (= state json-error-scan-error)
+              (push (list json-error-error json-error-cursor json-error-lineno json-error-line-offset)
+                    json-error-parsed-errors)
+              (throw 'done nil)))))
+      )))
 
 ;; Internal parser state:
 

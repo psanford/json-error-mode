@@ -24,6 +24,13 @@ like this to your config:
             (when (string-match "\\.json$" (buffer-file-name))
               (json-error-mode))))
 
+## Running Tests
+
+To run the test suite, navigate to the test directory and run:
+
+    cd test
+    emacs -Q -batch -L .. -l ert -l json-error-test.el -f ert-run-tests-batch-and-exit
+
 ## Internals
 
 The json parser is a port of the go json parser to elisp. The
