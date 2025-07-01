@@ -5,11 +5,8 @@ This is an Emacs minor mode that provides syntax error checking and
 highlighting for json buffers. It implements a json parser in elisp
 to provide accurate checking.
 
-Currently the parser is only used to check for syntax errors. While
-it could also be used for normal (font-lock) syntax highlighting and
-indenting, other javascript major modes handle that fairly well
-(like js-mode). Since the main feature I wanted was error checking,
-that was the first thing to be implemented.
+The parser is only used to check for syntax errors. It is intended
+to be used in conjunction with js-mode.
 
 To enable `js-mode` and `json-error-mode` for .json files add something
 like this to your config:
